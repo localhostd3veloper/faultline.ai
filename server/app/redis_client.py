@@ -1,9 +1,10 @@
 from typing import Optional
 
 import redis.asyncio as redis
+from loguru import logger
 
 from .config import settings
-from loguru import logger
+
 
 class RedisClient:
     _instance: Optional[redis.Redis] = None

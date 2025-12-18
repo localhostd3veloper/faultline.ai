@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import json
 import uuid
@@ -7,48 +6,55 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from loguru import logger
 from pydantic import BaseModel
-from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai import Agent, ModelSettings, RunContext
 
 from ..config import settings
+from ..logic.analysis import normalize_artifact, run_heuristics
 from ..redis_client import get_redis
-from ..schemas.analysis import AnalysisRequest, AnalysisResult, JobResponse, JobStatus
+from ..schemas.analysis import (
+    AnalysisData,
+    AnalysisMetadata,
+    AnalysisRequest,
+    AnalysisResult,
+    HeuristicFinding,
+    JobResponse,
+    JobStatus,
+    NormalizedArtifact,
+)
 
 router = APIRouter()
 
 
-class Finding(BaseModel):
-    title: str
-    description: str
-    category: str
-    severity: str
-    rationale: str
-    remediation: str
-
-
-class AnalysisOutput(BaseModel):
-    production_readiness_score: int
-    summary: str
-    findings: List[Finding]
-    suggested_next_steps: List[str]
-    markdown_report: str
+class AgentInput(BaseModel):
+    normalized_artifact: NormalizedArtifact
+    heuristic_findings: List[HeuristicFinding]
+    metadata: AnalysisMetadata
 
 
 analysis_agent = Agent(
-    model=OpenAIChatModel(
-        "gpt-4o", provider=OpenAIProvider(api_key=settings.OPENAI_API_KEY)
-    ),
-    output_type=AnalysisOutput,
-    system_prompt=(
-        "You are a production-grade software architecture and security expert. "
-        "Analyze the provided artifact (code, config, or architecture) and identify 3-6 meaningful findings. "
-        "Categorize findings into groups like Scalability, AI Risk, Cloud, Security, Reliability, etc. "
-        "Assign severity levels: High, Medium, or Low. "
-        "Provide a Production Readiness Score (0-100), rationale for each finding, "
-        "and actionable remediation guidance."
-    ),
+    model=settings.get_model(),
+    output_type=AnalysisData,
+    deps_type=AgentInput,
+    retries=3,
 )
+
+
+@analysis_agent.system_prompt
+def get_system_prompt(ctx: RunContext[AgentInput]) -> str:
+    return (
+        "You are an expert software architect. Review the provided artifact and findings. "
+        "Each heuristic finding includes a 'confidence' level (low/medium/high) and a 'source'. "
+        "Use this metadata to weigh the findings: trust 'high' confidence facts from OpenAPI more than 'low' confidence documentation signals. "
+        "1. Prioritize findings and add missing ones. "
+        "2. Provide remediation for each. "
+        "3. Generate a score (0-100) and summary. "
+        "4. Create data for 3 charts (pie, bar, or line). "
+        "\n\nSTRICT JSON RULES: "
+        "- No trailing commas. "
+        "- production_readiness_score must be an integer. "
+        "- markdown_report must be valid markdown. "
+        f"\n\nARTIFACT DATA TO ANALYZE:\n{ctx.deps.model_dump_json()}"
+    )
 
 
 def compute_content_hash(content: str) -> str:
@@ -56,10 +62,15 @@ def compute_content_hash(content: str) -> str:
 
 
 async def run_analysis_task(
-    job_id: str, content: str, content_type: str, metadata: Dict[str, Any]
+    job_id: str,
+    content: str,
+    content_type: str,
+    metadata: Dict[str, Any],
+    content_hash: str,
 ):
     redis = await get_redis()
     job_key = f"{settings.JOB_KEY_PREFIX}{job_id}"
+    cache_key = f"{settings.CACHE_KEY_PREFIX}{content_hash}"
 
     async def update_job(
         status: JobStatus,
@@ -72,7 +83,7 @@ async def run_analysis_task(
             data = json.loads(job_data)
             data["status"] = status
             if progress:
-                data["progress_hints"] = progress
+                data["progress_hint"] = progress
             if result:
                 data["result"] = result
             if markdown:
@@ -81,63 +92,73 @@ async def run_analysis_task(
 
     try:
         logger.info(f"Job {job_id}: Starting analysis for {content_type}")
-        await update_job(JobStatus.RUNNING, "Initializing analysis engine...")
-        await asyncio.sleep(5)
+        await update_job(JobStatus.RUNNING, "Normalizing artifact...")
 
-        logger.debug(f"Job {job_id}: Analyzing content...")
-        await update_job(JobStatus.RUNNING, f"Analyzing {content_type} content...")
+        # Step 0: SIZE GUARDRAIL
+        if len(content) > settings.MAX_CONTENT_SIZE:
+            raise ValueError(
+                f"Artifact size ({len(content)} bytes) exceeds maximum limit of {settings.MAX_CONTENT_SIZE} bytes"
+            )
 
-        # In a real scenario, we would call the agent:
-        # result = await analysis_agent.run(content)
-        # analysis_data = result.data
+        # Step 1: NORMALIZE
+        normalized = normalize_artifact(content, content_type)
+        logger.debug(f"Job {job_id}: Normalized into {normalized.kind}")
 
-        # Mocking the AI response with the new strict model structure
-        analysis_data = AnalysisOutput(
-            production_readiness_score=65,
-            summary="The artifact shows several production-readiness gaps in security and reliability.",
-            findings=[
-                Finding(
-                    title="SQL Injection Risk",
-                    description="Potential unparameterized query in user input.",
-                    category="Security",
-                    severity="High",
-                    rationale="Direct string interpolation in SQL queries allows attackers to execute arbitrary commands.",
-                    remediation="Use prepared statements or an ORM with parameterized queries.",
-                ),
-                Finding(
-                    title="Hardcoded Secret",
-                    description="AWS API key found in configuration file.",
-                    category="Security",
-                    severity="High",
-                    rationale="Exposing secrets in code leads to unauthorized resource access and potential data breaches.",
-                    remediation="Move secrets to environment variables or a secret management service like AWS Secrets Manager.",
-                ),
-                Finding(
-                    title="Missing Health Check",
-                    description="The service lacks a dedicated health check endpoint.",
-                    category="Reliability",
-                    severity="Medium",
-                    rationale="Orchestrators cannot determine if the service is healthy or needs a restart without a probe.",
-                    remediation="Implement a /health endpoint that checks database and cache connectivity.",
-                ),
-            ],
-            suggested_next_steps=[
-                "Implement environment-based secret management.",
-                "Add automated SQL injection scanning to the CI/CD pipeline.",
-                "Configure liveness and readiness probes in deployment manifests.",
-            ],
-            markdown_report="### Analysis Result\nFound 3 findings during scan.",
+        # Step 2: HEURISTICS
+        await update_job(JobStatus.RUNNING, "Running heuristics...")
+        heuristic_findings = run_heuristics(normalized)
+        logger.debug(
+            f"Job {job_id}: Found {len(heuristic_findings)} heuristic findings"
+        )
+
+        # Step 3: AI SYNTHESIS
+        await update_job(JobStatus.RUNNING, "Synthesizing with AI...")
+        agent_input = AgentInput(
+            normalized_artifact=normalized,
+            heuristic_findings=heuristic_findings,
+            metadata=AnalysisMetadata(**metadata),
+        )
+        logger.debug(
+            f"Job {job_id}: Agent input prepared with {len(heuristic_findings)} findings"
+        )
+
+        # Use result_retry to handle malformed JSON from local models (like Ollama/Llama)
+        # We pass the object directly as deps and let the agent handle it in system_prompt
+        result = await analysis_agent.run(
+            "Begin synthesis based on provided artifact data.",
+            deps=agent_input,
+            model_settings=ModelSettings(
+                max_tokens=settings.MAX_AI_TOKENS, temperature=settings.AI_TEMPERATURE
+            ),
+        )
+        analysis_data = result.data
+
+        # Log usage and cost metrics
+        usage = result.usage()
+        logger.info(
+            f"Job {job_id}: AI Synthesis complete. "
+            f"Model: {settings.AI_MODEL}, "
+            f"Tokens: {usage.request_tokens} (prompt) / {usage.response_tokens} (completion) / {usage.total_tokens} (total)"
         )
 
         logger.info(
             f"Job {job_id}: Analysis complete with {len(analysis_data.findings)} findings"
         )
+        result_payload = analysis_data.model_dump(exclude={"markdown_report"})
         await update_job(
             JobStatus.COMPLETED,
             "Analysis complete",
-            result=analysis_data.model_dump(exclude={"markdown_report"}),
+            result=result_payload,
             markdown=analysis_data.markdown_report,
         )
+
+        # Cache the result
+        cache_data = {
+            "result": result_payload,
+            "markdown": analysis_data.markdown_report,
+        }
+        await redis.set(cache_key, json.dumps(cache_data), ex=settings.CACHE_EXPIRATION)
+        logger.info(f"Job {job_id}: Result cached with hash {content_hash}")
 
     except Exception as e:
         logger.exception(f"Job {job_id}: Analysis failed")
@@ -150,18 +171,42 @@ async def run_analysis_task(
 @router.post("/artifacts/analyze", response_model=JobResponse)
 async def analyze_artifact(request: AnalysisRequest, background_tasks: BackgroundTasks):
     content_hash = compute_content_hash(request.content)
+    redis = await get_redis()
+
+    # Check cache
+    cache_key = f"{settings.CACHE_KEY_PREFIX}{content_hash}"
+    cached_result = await redis.get(cache_key)
+
     job_id = str(uuid.uuid4())
     job_key = f"{settings.JOB_KEY_PREFIX}{job_id}"
+
+    if cached_result:
+        logger.info(f"Cache hit for hash: {content_hash}. Returning cached job.")
+        cache_data = json.loads(cached_result)
+        job_info = {
+            "job_id": job_id,
+            "status": JobStatus.COMPLETED,
+            "content_hash": content_hash,
+            "metadata": request.metadata.model_dump() if request.metadata else {},
+            "progress_hint": "Analysis retrieved from cache",
+            "result": cache_data["result"],
+            "markdown": cache_data["markdown"],
+        }
+        await redis.set(job_key, json.dumps(job_info), ex=settings.JOB_EXPIRATION)
+        return JobResponse(
+            job_id=job_id,
+            status=JobStatus.COMPLETED,
+            progress_hint="Analysis retrieved from cache",
+        )
 
     job_info = {
         "job_id": job_id,
         "status": JobStatus.QUEUED,
         "content_hash": content_hash,
         "metadata": request.metadata.model_dump() if request.metadata else {},
-        "progress_hints": "Job queued",
+        "progress_hint": "Job queued",
     }
 
-    redis = await get_redis()
     await redis.set(job_key, json.dumps(job_info), ex=settings.JOB_EXPIRATION)
 
     logger.info(f"Job {job_id} queued for content type: {request.content_type}")
@@ -171,10 +216,11 @@ async def analyze_artifact(request: AnalysisRequest, background_tasks: Backgroun
         request.content,
         request.content_type,
         request.metadata.model_dump() if request.metadata else {},
+        content_hash,
     )
 
     return JobResponse(
-        job_id=job_id, status=JobStatus.QUEUED, progress_hints="Job queued"
+        job_id=job_id, status=JobStatus.QUEUED, progress_hint="Job queued"
     )
 
 
@@ -198,7 +244,7 @@ async def get_job_status(job_id: str):
     return JobResponse(
         job_id=job_id,
         status=data["status"],
-        progress_hints=data.get("progress_hints"),
+        progress_hint=data.get("progress_hint"),
     )
 
 
