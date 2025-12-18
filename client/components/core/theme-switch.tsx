@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { Moon, Sun, Laptop } from 'lucide-react';
-import { useTheme } from 'next-themes';
+import { Laptop, Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
+import * as React from "react";
 
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 
 export function ToggleTheme() {
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -30,13 +30,13 @@ export function ToggleTheme() {
     );
   }
 
-  const currentTheme = theme === 'system' ? resolvedTheme : theme;
+  const currentTheme = theme === "system" ? resolvedTheme : theme;
 
   const ThemeIcon =
-    currentTheme === 'dark' ? Moon : currentTheme === 'light' ? Sun : Laptop;
+    currentTheme === "dark" ? Moon : currentTheme === "light" ? Sun : Laptop;
 
   const themeLabel =
-    theme === 'system' ? 'System' : currentTheme === 'dark' ? 'Dark' : 'Light';
+    theme === "system" ? "System" : currentTheme === "dark" ? "Dark" : "Light";
 
   return (
     <DropdownMenu>
@@ -48,17 +48,17 @@ export function ToggleTheme() {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme('light')} className="gap-2">
+        <DropdownMenuItem onClick={() => setTheme("light")} className="gap-2">
           <Sun className="h-4 w-4" />
           <span>Light</span>
         </DropdownMenuItem>
 
-        <DropdownMenuItem onClick={() => setTheme('dark')} className="gap-2">
+        <DropdownMenuItem onClick={() => setTheme("dark")} className="gap-2">
           <Moon className="h-4 w-4" />
           <span>Dark</span>
         </DropdownMenuItem>
 
-        <DropdownMenuItem onClick={() => setTheme('system')} className="gap-2">
+        <DropdownMenuItem onClick={() => setTheme("system")} className="gap-2">
           <Laptop className="h-4 w-4" />
           <span>System</span>
         </DropdownMenuItem>

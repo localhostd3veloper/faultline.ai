@@ -1,5 +1,5 @@
-import { ToggleTheme } from "./theme-switch";
 import FaultLineLogo from "./logo";
+import { ToggleTheme } from "./theme-switch";
 
 export default function Header() {
   return (
