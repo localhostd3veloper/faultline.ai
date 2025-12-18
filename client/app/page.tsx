@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { FileText, Link as LinkIcon, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useCallback, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
+import { toast } from "sonner";
+
+import { fetchOpenAPIFromUrl } from "@/app/actions/fetch-openapi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Link as LinkIcon, FileText } from "lucide-react";
-import { useEditorStore } from "@/lib/store/editor";
 import { detectContentType, isValidUrl } from "@/lib/openapi";
-import { fetchOpenAPIFromUrl } from "@/app/actions/fetch-openapi";
+import { useEditorStore } from "@/lib/store/editor";
 
 export default function Home() {
   const router = useRouter();

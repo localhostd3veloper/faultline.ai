@@ -21,7 +21,7 @@ export enum JobStatus {
 export interface JobResponse {
   job_id: string;
   status: JobStatus;
-  progress_hints?: string;
+  progress_hint?: string;
 }
 
 export interface Finding {
@@ -33,10 +33,23 @@ export interface Finding {
   remediation: string;
 }
 
+export interface ChartDataPoint {
+  label: string;
+  value: number;
+}
+
+export interface Chart {
+  title: string;
+  type: "line" | "bar" | "pie";
+  description: string;
+  data: ChartDataPoint[];
+}
+
 export interface AnalysisData {
   production_readiness_score: number;
   summary: string;
   findings: Finding[];
+  charts?: Chart[];
   suggested_next_steps: string[];
 }
 

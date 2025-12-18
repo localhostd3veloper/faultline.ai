@@ -1,10 +1,12 @@
+import "./globals.css";
+
 import type { Metadata } from "next";
 import { Geist_Mono, Manrope } from "next/font/google";
-import "./globals.css";
 import { ThemeProvider } from "next-themes";
-import { Toaster } from "@/components/ui/sonner";
-import Header from "@/components/core/header";
+
 import Footer from "@/components/core/footer";
+import Header from "@/components/core/header";
+import { Toaster } from "@/components/ui/sonner";
 
 const manropeSans = Manrope({
   variable: "--font-manrope-sans",
@@ -39,7 +41,7 @@ export default function RootLayout({
         >
           <main className="mx-auto flex h-screen max-w-480 flex-col">
             <Header />
-            <div className="flex-1 overflow-hidden">{children}</div>
+            <div className="flex-1 overflow-auto">{children}</div>
             <Footer />
           </main>
           <Toaster />
