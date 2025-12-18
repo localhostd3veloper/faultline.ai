@@ -1,6 +1,6 @@
 "use server";
 
-import crypto from "crypto";
+import { fastApiFetch } from "@/lib/fastapi";
 
 interface AnalyzeRequest {
   content: string;
@@ -13,46 +13,58 @@ interface AnalyzeRequest {
   };
 }
 
+export type JobStatus = "queued" | "running" | "completed" | "failed";
+
+export interface JobResponse {
+  job_id: string;
+  status: JobStatus;
+  progress_hints?: string;
+}
+
 export async function analyzeArtifact(data: AnalyzeRequest) {
   try {
     if (!data.content || !data.contentType) {
-      return {
-        error: "content and contentType are required",
-      };
+      return { error: "content and contentType are required" };
     }
 
-    if (
-      data.contentType !== "markdown" &&
-      data.contentType !== "openapi-yaml" &&
-      data.contentType !== "openapi-json"
-    ) {
-      return {
-        error: "Invalid contentType. Must be markdown, openapi-yaml, or openapi-json",
-      };
-    }
+    const result = await fastApiFetch("/artifacts/analyze", {
+      method: "POST",
+      body: JSON.stringify({
+        content: data.content,
+        content_type: data.contentType,
+        metadata: data.metadata || {},
+      }),
+    });
 
-    const contentHash = crypto
-      .createHash("sha256")
-      .update(data.content)
-      .digest("hex");
-
-    const jobId = crypto.randomUUID();
-
-    const analysisJob = {
-      job_id: jobId,
-      content_hash: contentHash,
-      content_type: data.contentType,
-      metadata: data.metadata || {},
-      status: "pending",
-      created_at: new Date().toISOString(),
-    };
-
-    return { data: analysisJob };
+    return { data: result as JobResponse };
   } catch (error) {
     console.error("Analysis error:", error);
     return {
-      error: "Internal server error",
+      error: error instanceof Error ? error.message : "Internal server error",
     };
   }
 }
 
+export async function getJobStatus(jobId: string) {
+  try {
+    const result = await fastApiFetch(`/jobs/${jobId}`);
+    return { data: result as JobResponse };
+  } catch (error) {
+    console.error(`Status check error for ${jobId}:`, error);
+    return {
+      error: error instanceof Error ? error.message : "Failed to fetch status",
+    };
+  }
+}
+
+export async function getJobResult(jobId: string) {
+  try {
+    const result = await fastApiFetch(`/jobs/${jobId}/result`);
+    return { data: result };
+  } catch (error) {
+    console.error(`Result fetch error for ${jobId}:`, error);
+    return {
+      error: error instanceof Error ? error.message : "Failed to fetch result",
+    };
+  }
+}

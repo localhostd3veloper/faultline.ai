@@ -11,6 +11,7 @@ interface EditorStore {
     team?: string;
     riskTolerance?: string;
     depth?: string;
+    sourceUrl?: string;
   };
   setContent: (content: string, type?: ContentType) => void;
   setMetadata: (metadata: EditorStore["metadata"]) => void;
@@ -34,4 +35,3 @@ export const useEditorStore = create<EditorStore>()(
     },
   ),
 );
-
