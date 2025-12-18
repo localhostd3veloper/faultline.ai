@@ -1,121 +1,40 @@
-"use client";
-
-import { useEffect, useState, use } from "react";
-import { getJobStatus, getJobResult } from "@/app/actions/analyze";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeHighlight from "rehype-highlight";
-import rehypeSanitize from "rehype-sanitize";
-import { Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
-import { toast } from "sonner";
-import { JobStatus, AnalysisResult } from "@/lib/types";
+import { redirect } from "next/navigation";
 
-const POLL_INTERVAL = 5000;
+import { getJobResult } from "@/app/actions/analyze";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-export default function ReviewPage({
+import { FindingsList, NextSteps, ReviewCharts, ScoreRing } from "./components";
+
+export default async function ReviewPage({
   params,
 }: {
   params: Promise<{ jobId: string }>;
 }) {
-  const { jobId } = use(params);
-  const [status, setStatus] = useState<JobStatus>(JobStatus.QUEUED);
-  const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { jobId } = await params;
+  const { data, error } = await getJobResult(jobId);
 
-  useEffect(() => {
-    let pollInterval: NodeJS.Timeout;
+  // If the backend says the job isn't done yet (400), redirect to polling page
+  if (error?.includes("400")) {
+    redirect(`/jobs/${jobId}`);
+  }
 
-    const pollStatus = async () => {
-      const { data, error } = await getJobStatus(jobId);
-
-      if (error || !data) {
-        setError(error);
-        if (pollInterval) clearInterval(pollInterval);
-        return false;
-      }
-
-      const { status, progress_hints: progressHints } = data;
-      setStatus(status);
-      if (progressHints) {
-        toast.info(progressHints);
-      }
-
-      switch (status) {
-        case JobStatus.COMPLETED:
-          if (pollInterval) clearInterval(pollInterval);
-          await fetchResult();
-          return false;
-        case JobStatus.FAILED:
-          if (pollInterval) clearInterval(pollInterval);
-          setError(error);
-          return false;
-      }
-
-      return true;
-    };
-
-    const fetchResult = async () => {
-      const { data, error } = await getJobResult(jobId);
-      if (error || !data) {
-        setError(error);
-        return;
-      }
-      setResult(data);
-    };
-
-    const initPolling = async () => {
-      const shouldContinue = await pollStatus();
-      if (shouldContinue) pollInterval = setInterval(pollStatus, POLL_INTERVAL);
-    };
-
-    initPolling();
-
-    return () => {
-      if (pollInterval) clearInterval(pollInterval);
-    };
-  }, [jobId]);
-
-  const renderStatus = () => {
-    switch (status) {
-      case JobStatus.QUEUED:
-        return (
-          <div className="text-muted-foreground flex items-center gap-2">
-            <Clock className="h-5 w-5 animate-pulse" />
-            <span>Job is in queue...</span>
-          </div>
-        );
-      case JobStatus.RUNNING:
-        return (
-          <div className="text-primary flex items-center gap-2">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span>Analysis is running...</span>
-          </div>
-        );
-      case JobStatus.FAILED:
-        return (
-          <div className="text-destructive flex items-center gap-2">
-            <XCircle className="h-5 w-5" />
-            <span>Analysis failed</span>
-          </div>
-        );
-      case JobStatus.COMPLETED:
-        return (
-          <div className="flex items-center gap-2 text-green-500">
-            <CheckCircle2 className="h-5 w-5" />
-            <span>Analysis complete</span>
-          </div>
-        );
-    }
-  };
-
-  if (error) {
+  if (error || !data) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4">
+      <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
         <XCircle className="text-destructive h-12 w-12" />
-        <h2 className="text-xl font-bold">Error</h2>
-        <p className="text-muted-foreground">{error}</p>
+        <h2 className="text-xl font-semibold">Error</h2>
+        <p className="text-muted-foreground max-w-md">
+          {error || "Failed to fetch analysis results"}
+        </p>
         <Button asChild variant="outline">
           <Link href="/editor">Back to Editor</Link>
         </Button>
@@ -123,51 +42,73 @@ export default function ReviewPage({
     );
   }
 
+  const { result } = data;
+  const {
+    production_readiness_score: score,
+    summary,
+    findings,
+    charts,
+    suggested_next_steps,
+  } = result;
+
   return (
-    <div className="mx-auto w-full max-w-4xl px-6 py-10">
-      <div className="mb-8 flex items-center justify-between border-b pb-4">
-        <div>
-          <h1 className="text-2xl font-bold">Analysis Review</h1>
-          <p className="text-muted-foreground mt-1 font-mono text-sm">
-            Job ID: {jobId}
-          </p>
+    <TooltipProvider>
+      <div className="animate-in fade-in mx-auto w-full max-w-6xl px-6 py-10 duration-700">
+        <div className="mb-4 flex items-start justify-between gap-6 border-b pb-4">
+          <div className="flex items-start gap-4">
+            {score !== undefined && <ScoreRing score={score} />}
+            <div className="flex-1">
+              <h1 className="text-2xl font-bold">Analysis Review</h1>
+              <Tooltip>
+                <TooltipTrigger>
+                  <p className="text-muted-foreground mt-1 font-mono text-sm hover:cursor-pointer hover:underline">
+                    Job ID: {jobId}
+                  </p>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Click to copy</TooltipContent>
+              </Tooltip>
+              {summary && (
+                <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed">
+                  {summary}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="shrink-0">
+            <Badge className="gap-2 border-green-500/20 bg-green-500/10 px-3 py-1 text-green-500 hover:bg-green-500/20">
+              <CheckCircle2 className="h-4 w-4" />
+              <span>Analysis Complete</span>
+            </Badge>
+          </div>
         </div>
-        {renderStatus()}
+
+        <div className="space-y-8">
+          {charts && (
+            <section>
+              <h2 className="mb-3 text-xl font-semibold">Metrics & Insights</h2>
+              <ReviewCharts charts={charts} />
+            </section>
+          )}
+
+          {findings && (
+            <section>
+              <h2 className="mb-3 text-xl font-semibold">
+                Findings ({findings.length})
+                <p className="text-muted-foreground mb-3 text-sm font-normal">
+                  You can expand each finding to see more details.
+                </p>
+              </h2>
+              <FindingsList findings={findings} />
+            </section>
+          )}
+
+          {suggested_next_steps && (
+            <section>
+              <NextSteps steps={suggested_next_steps} />
+            </section>
+          )}
+        </div>
       </div>
-
-      {status !== JobStatus.COMPLETED ? (
-        <div className="flex flex-col items-center justify-center gap-4 py-20">
-          <Loader2 className="text-primary h-10 w-10 animate-spin" />
-          <p className="text-muted-foreground">
-            Waiting for analysis results...
-          </p>
-        </div>
-      ) : (
-        <div className="animate-in fade-in slide-in-from-bottom-4 space-y-8 duration-500">
-          {result?.markdown && (
-            <section className="bg-sidebar rounded-lg border p-6">
-              <h2 className="mb-4 text-xl font-semibold">Summary</h2>
-              <article className="prose dark:prose-invert max-w-none">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeSanitize, rehypeHighlight]}
-                >
-                  {result.markdown}
-                </ReactMarkdown>
-              </article>
-            </section>
-          )}
-
-          {result?.result && (
-            <section className="bg-sidebar rounded-lg border p-6">
-              <h2 className="mb-4 text-xl font-semibold">Structured Review</h2>
-              <pre className="bg-background overflow-auto rounded-md border p-4 font-mono text-sm">
-                {JSON.stringify(result.result, null, 2)}
-              </pre>
-            </section>
-          )}
-        </div>
-      )}
-    </div>
+    </TooltipProvider>
   );
 }

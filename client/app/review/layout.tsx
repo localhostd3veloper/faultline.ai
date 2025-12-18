@@ -3,10 +3,5 @@ export default function ReviewLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="flex-1 overflow-auto">
-      {children}
-    </div>
-  );
+  return <div className="h-full flex-1 overflow-auto">{children}</div>;
 }
-
