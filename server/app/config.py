@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     CACHE_EXPIRATION: int = 86400  # 24 hours
 
     # AI Configuration
+    DEMO_MODE: bool = False
     AI_PROVIDER: Literal["openai", "google", "groq", "ollama"] = "ollama"
     AI_MODEL: str = "llama3.1"
 

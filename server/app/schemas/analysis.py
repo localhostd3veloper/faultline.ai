@@ -106,9 +106,9 @@ class Chart(BaseModel):
 class AnalysisData(BaseModel):
     production_readiness_score: int
     summary: str
-    findings: list[Finding]
+    findings: list[Finding] = Field(default_factory=list)
     charts: list[Chart] = Field(default_factory=list)
-    suggested_next_steps: list[str]
+    suggested_next_steps: list[str] = Field(default_factory=list)
     markdown_report: str = Field(default="", alias="markdownReport")
 
     class Config:
@@ -120,3 +120,9 @@ class AnalysisResult(BaseModel):
     status: JobStatus
     result: Optional[AnalysisData] = None
     markdown: Optional[str] = None
+
+
+class AgentInput(BaseModel):
+    normalized_artifact: NormalizedArtifact
+    heuristic_findings: list[HeuristicFinding]
+    metadata: AnalysisMetadata

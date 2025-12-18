@@ -1,60 +1,95 @@
 import hashlib
 import json
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from loguru import logger
-from pydantic import BaseModel
 from pydantic_ai import Agent, ModelSettings, RunContext
 
 from ..config import settings
 from ..logic.analysis import normalize_artifact, run_heuristics
+from ..logic.demo import demo
 from ..redis_client import get_redis
 from ..schemas.analysis import (
+    AgentInput,
     AnalysisData,
     AnalysisMetadata,
     AnalysisRequest,
     AnalysisResult,
-    HeuristicFinding,
     JobResponse,
     JobStatus,
-    NormalizedArtifact,
 )
 
 router = APIRouter()
 
 
-class AgentInput(BaseModel):
-    normalized_artifact: NormalizedArtifact
-    heuristic_findings: List[HeuristicFinding]
-    metadata: AnalysisMetadata
-
-
-analysis_agent = Agent(
-    model=settings.get_model(),
-    output_type=AnalysisData,
-    deps_type=AgentInput,
-    retries=3,
-)
-
-
-@analysis_agent.system_prompt
-def get_system_prompt(ctx: RunContext[AgentInput]) -> str:
-    return (
-        "You are an expert software architect. Review the provided artifact and findings. "
-        "Each heuristic finding includes a 'confidence' level (low/medium/high) and a 'source'. "
-        "Use this metadata to weigh the findings: trust 'high' confidence facts from OpenAPI more than 'low' confidence documentation signals. "
-        "1. Prioritize findings and add missing ones. "
-        "2. Provide remediation for each. "
-        "3. Generate a score (0-100) and summary. "
-        "4. Create data for 3 charts (pie, bar, or line). "
-        "\n\nSTRICT JSON RULES: "
-        "- No trailing commas. "
-        "- production_readiness_score must be an integer. "
-        "- markdown_report must be valid markdown. "
-        f"\n\nARTIFACT DATA TO ANALYZE:\n{ctx.deps.model_dump_json()}"
+if settings.DEMO_MODE:
+    analysis_agent = demo
+else:
+    analysis_agent = Agent(
+        model=settings.get_model(),
+        output_type=AnalysisData,
+        deps_type=AgentInput,
+        retries=3,
+        output_retries=3,
+        model_settings=ModelSettings(
+            max_tokens=settings.MAX_AI_TOKENS,
+            temperature=settings.AI_TEMPERATURE,
+        ),
     )
+
+
+if not settings.DEMO_MODE:
+
+    @analysis_agent.system_prompt
+    def get_system_prompt(ctx: RunContext[AgentInput]) -> str:
+        return (
+            "You are an expert software architect performing a production-readiness review.\n\n"
+            "You are given:\n"
+            "- A normalized engineering artifact\n"
+            "- A list of heuristic findings\n"
+            "- Each heuristic includes a severity, confidence (low/medium/high), and source\n\n"
+            "INTERPRETATION RULES:\n"
+            "- Treat high-confidence findings from OpenAPI as factual.\n"
+            "- Treat medium-confidence findings as likely but uncertain.\n"
+            "- Treat low-confidence findings as weak signals; do not overemphasize them.\n"
+            "- You may add additional findings ONLY if they are directly implied by the artifact.\n"
+            "- Do NOT invent technologies, services, or failures not present in the data.\n\n"
+            "TASKS:\n"
+            "1. Prioritize all findings by real-world production risk.\n"
+            "2. For each finding, provide a concise, actionable remediation.\n"
+            "3. Compute a production_readiness_score (0–100) based on severity and breadth of issues.\n"
+            "4. Write a clear executive summary explaining what will break first and why.\n"
+            "5. Generate exactly three charts with meaningful data:\n"
+            "   - One chart must summarize findings by severity.\n"
+            "   - One chart must relate to scalability, reliability, or security risk.\n"
+            "   - One chart must represent system cost, complexity, or operational risk.\n\n"
+            "OUTPUT RULES (STRICT):\n"
+            "- Output ONLY a raw JSON object matching the response schema.\n"
+            "- Do NOT use function calls, tool calls, or wrappers like 'final_result' or 'parameters'.\n"
+            "- The top-level keys in your JSON MUST be: 'production_readiness_score', 'summary', 'findings', 'charts', 'suggested_next_steps', and 'markdown_report'.\n"
+            "- Do NOT stringify nested arrays or objects; they must be actual JSON arrays/objects.\n"
+            "- Do NOT include explanations, comments, or text outside JSON.\n"
+            "- production_readiness_score must be an integer.\n"
+            "- markdown_report must be valid markdown.\n"
+            "- Charts must contain realistic, internally consistent values.\n\n"
+            "DO NOT OUTPUT ANYTHING OTHER THAN THE JSON OBJECT. IT SHOULD NOT BE ENCLOSD IN A CODE BLOCK. DO NOT OUTPUT ANYTHING ELSE."
+            "EXAMPLE OF CORRECT TOP-LEVEL STRUCTURE:\n"
+            "{\n"
+            '  "production_readiness_score": 85,\n'
+            '  "summary": "...",\n'
+            '  "findings": [],\n'
+            '  "charts": [],\n'
+            '  "suggested_next_steps": [],\n'
+            '  "markdown_report": "# Report..."\n'
+            "}\n\n"
+            "BEGIN INPUT DATA (READ-ONLY):\n"
+            "```json\n"
+            f"{ctx.deps.model_dump_json()}\n"
+            "```\n\n"
+            "END INPUT DATA"
+        )
 
 
 def compute_content_hash(content: str) -> str:
@@ -121,24 +156,18 @@ async def run_analysis_task(
         logger.debug(
             f"Job {job_id}: Agent input prepared with {len(heuristic_findings)} findings"
         )
-
-        # Use result_retry to handle malformed JSON from local models (like Ollama/Llama)
-        # We pass the object directly as deps and let the agent handle it in system_prompt
         result = await analysis_agent.run(
             "Begin synthesis based on provided artifact data.",
             deps=agent_input,
-            model_settings=ModelSettings(
-                max_tokens=settings.MAX_AI_TOKENS, temperature=settings.AI_TEMPERATURE
-            ),
         )
-        analysis_data = result.data
+        analysis_data = result.output
 
         # Log usage and cost metrics
         usage = result.usage()
         logger.info(
             f"Job {job_id}: AI Synthesis complete. "
             f"Model: {settings.AI_MODEL}, "
-            f"Tokens: {usage.request_tokens} (prompt) / {usage.response_tokens} (completion) / {usage.total_tokens} (total)"
+            f"Tokens: {usage.input_tokens} (prompt) / {usage.output_tokens} (completion) / {usage.total_tokens} (total)"
         )
 
         logger.info(
@@ -162,10 +191,23 @@ async def run_analysis_task(
 
     except Exception as e:
         logger.exception(f"Job {job_id}: Analysis failed")
+
+        # DEBUG: Store the raw error details to a file for inspection
+        try:
+            with open("debug_error.json", "w") as f:
+                import json as json_lib
+
+                debug_info = {
+                    "job_id": job_id,
+                    "error": str(e),
+                    "type": type(e).__name__,
+                }
+                f.write(json_lib.dumps(debug_info, indent=2))
+            logger.info(f"Job {job_id}: Debug info saved to debug_error.json")
+        except Exception as debug_e:
+            logger.warning(f"Failed to save debug info: {debug_e}")
+
         await update_job(JobStatus.FAILED, progress=f"Error: {str(e)}")
-    finally:
-        # Note: redis closing is handled by lifespan, but we should not close the shared client here
-        pass
 
 
 @router.post("/artifacts/analyze", response_model=JobResponse)
