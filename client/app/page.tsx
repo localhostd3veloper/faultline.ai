@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Upload, Link as LinkIcon, FileText } from "lucide-react";
 import { useEditorStore } from "@/lib/store/editor";
-import { detectContentType, isValidUrl } from "@/lib/utils/openapi";
+import { detectContentType, isValidUrl } from "@/lib/openapi";
 import { fetchOpenAPIFromUrl } from "@/app/actions/fetch-openapi";
 
 export default function Home() {
@@ -18,7 +18,7 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [pasteContent, setPasteContent] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { setContent } = useEditorStore();
+  const { setContent, setMetadata, metadata } = useEditorStore();
 
   const processFile = useCallback(
     (file: File) => {
@@ -72,8 +72,8 @@ export default function Home() {
       if (result.data) {
         const contentType = detectContentType(url, result.data);
         setContent(result.data, contentType);
-        useEditorStore.getState().setMetadata({
-          ...useEditorStore.getState().metadata,
+        setMetadata({
+          ...metadata,
           sourceUrl: url.trim(),
         });
         toast.success("Content loaded successfully");

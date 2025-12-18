@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
-import { getJobStatus, getJobResult, type JobStatus } from "@/app/actions/analyze";
-import { toast } from "sonner";
+import { getJobStatus, getJobResult } from "@/app/actions/analyze";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -10,75 +9,98 @@ import rehypeSanitize from "rehype-sanitize";
 import { Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { toast } from "sonner";
+import { JobStatus, AnalysisResult } from "@/lib/types";
 
-export default function ReviewPage({ params }: { params: Promise<{ jobId: string }> }) {
+const POLL_INTERVAL = 5000;
+
+export default function ReviewPage({
+  params,
+}: {
+  params: Promise<{ jobId: string }>;
+}) {
   const { jobId } = use(params);
-  const [status, setStatus] = useState<JobStatus>("queued");
-  const [result, setResult] = useState<any>(null);
+  const [status, setStatus] = useState<JobStatus>(JobStatus.QUEUED);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let pollInterval: NodeJS.Timeout;
 
     const pollStatus = async () => {
-      const { data, error: statusError } = await getJobStatus(jobId);
-      
-      if (statusError) {
-        setError(statusError);
-        return;
+      const { data, error } = await getJobStatus(jobId);
+
+      if (error || !data) {
+        setError(error);
+        if (pollInterval) clearInterval(pollInterval);
+        return false;
       }
 
-      if (data) {
-        setStatus(data.status);
-        if (data.status === "completed") {
-          clearInterval(pollInterval);
-          fetchResult();
-        } else if (data.status === "failed") {
-          clearInterval(pollInterval);
-          setError("Analysis job failed");
-        }
+      const { status, progress_hints: progressHints } = data;
+      setStatus(status);
+      if (progressHints) {
+        toast.info(progressHints);
       }
+
+      switch (status) {
+        case JobStatus.COMPLETED:
+          if (pollInterval) clearInterval(pollInterval);
+          await fetchResult();
+          return false;
+        case JobStatus.FAILED:
+          if (pollInterval) clearInterval(pollInterval);
+          setError(error);
+          return false;
+      }
+
+      return true;
     };
 
     const fetchResult = async () => {
-      const { data, error: resultError } = await getJobResult(jobId);
-      if (resultError) {
-        setError(resultError);
-      } else {
-        setResult(data);
+      const { data, error } = await getJobResult(jobId);
+      if (error || !data) {
+        setError(error);
+        return;
       }
+      setResult(data);
     };
 
-    pollStatus(); // Initial check
-    pollInterval = setInterval(pollStatus, 2000);
+    const initPolling = async () => {
+      const shouldContinue = await pollStatus();
+      if (shouldContinue) pollInterval = setInterval(pollStatus, POLL_INTERVAL);
+    };
 
-    return () => clearInterval(pollInterval);
+    initPolling();
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
   }, [jobId]);
 
   const renderStatus = () => {
     switch (status) {
-      case "queued":
+      case JobStatus.QUEUED:
         return (
-          <div className="flex items-center gap-2 text-muted-foreground">
+          <div className="text-muted-foreground flex items-center gap-2">
             <Clock className="h-5 w-5 animate-pulse" />
             <span>Job is in queue...</span>
           </div>
         );
-      case "running":
+      case JobStatus.RUNNING:
         return (
-          <div className="flex items-center gap-2 text-primary">
+          <div className="text-primary flex items-center gap-2">
             <Loader2 className="h-5 w-5 animate-spin" />
             <span>Analysis is running...</span>
           </div>
         );
-      case "failed":
+      case JobStatus.FAILED:
         return (
-          <div className="flex items-center gap-2 text-destructive">
+          <div className="text-destructive flex items-center gap-2">
             <XCircle className="h-5 w-5" />
             <span>Analysis failed</span>
           </div>
         );
-      case "completed":
+      case JobStatus.COMPLETED:
         return (
           <div className="flex items-center gap-2 text-green-500">
             <CheckCircle2 className="h-5 w-5" />
@@ -106,18 +128,22 @@ export default function ReviewPage({ params }: { params: Promise<{ jobId: string
       <div className="mb-8 flex items-center justify-between border-b pb-4">
         <div>
           <h1 className="text-2xl font-bold">Analysis Review</h1>
-          <p className="text-muted-foreground text-sm font-mono mt-1">Job ID: {jobId}</p>
+          <p className="text-muted-foreground mt-1 font-mono text-sm">
+            Job ID: {jobId}
+          </p>
         </div>
         {renderStatus()}
       </div>
 
-      {status !== "completed" ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <p className="text-muted-foreground">Waiting for analysis results...</p>
+      {status !== JobStatus.COMPLETED ? (
+        <div className="flex flex-col items-center justify-center gap-4 py-20">
+          <Loader2 className="text-primary h-10 w-10 animate-spin" />
+          <p className="text-muted-foreground">
+            Waiting for analysis results...
+          </p>
         </div>
       ) : (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="animate-in fade-in slide-in-from-bottom-4 space-y-8 duration-500">
           {result?.markdown && (
             <section className="bg-sidebar rounded-lg border p-6">
               <h2 className="mb-4 text-xl font-semibold">Summary</h2>
@@ -132,11 +158,11 @@ export default function ReviewPage({ params }: { params: Promise<{ jobId: string
             </section>
           )}
 
-          {result?.structured && (
+          {result?.result && (
             <section className="bg-sidebar rounded-lg border p-6">
               <h2 className="mb-4 text-xl font-semibold">Structured Review</h2>
-              <pre className="bg-background overflow-auto rounded-md p-4 text-sm font-mono border">
-                {JSON.stringify(result.structured, null, 2)}
+              <pre className="bg-background overflow-auto rounded-md border p-4 font-mono text-sm">
+                {JSON.stringify(result.result, null, 2)}
               </pre>
             </section>
           )}
@@ -145,4 +171,3 @@ export default function ReviewPage({ params }: { params: Promise<{ jobId: string
     </div>
   );
 }
-
