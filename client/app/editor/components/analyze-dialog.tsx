@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
-import { useEditorStore } from "@/lib/store/editor";
+
 import { analyzeArtifact } from "@/app/actions/analyze";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -21,17 +21,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useEditorStore } from "@/lib/store/editor";
 
 interface AnalyzeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAnalysisStarted: (jobId: string) => void;
 }
 
 export default function AnalyzeDialog({
   open,
   onOpenChange,
-  onAnalysisStarted,
 }: AnalyzeDialogProps) {
   const router = useRouter();
   const {
@@ -72,12 +71,11 @@ export default function AnalyzeDialog({
       }
 
       if (result.data) {
-        onAnalysisStarted(result.data.job_id);
         onOpenChange(false);
         toast.success("Analysis job started", {
           description: `Job ID: ${result.data.job_id}`,
         });
-        router.push(`/review/${result.data.job_id}`);
+        router.push(`/jobs/${result.data.job_id}`);
       }
     } catch (error) {
       toast.error(
