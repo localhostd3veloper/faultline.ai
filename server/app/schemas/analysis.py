@@ -63,7 +63,7 @@ class AnalysisMetadata(BaseModel):
 class AnalysisRequest(BaseModel):
     content: str
     content_type: ContentType = Field(alias="contentType")
-    metadata: Optional[AnalysisMetadata] = Field(default_factory=AnalysisMetadata)
+    metadata: Optional[AnalysisMetadata] = Field(default=None)
 
     class Config:
         populate_by_name = True
