@@ -9,7 +9,7 @@ FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NODE_ENV=production
-RUN bun run build
+RUN mkdir -p ./public && bun run build
 
 FROM base AS runner
 WORKDIR /app
