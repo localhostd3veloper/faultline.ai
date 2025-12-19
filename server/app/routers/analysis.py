@@ -1,5 +1,6 @@
 import hashlib
 import json
+import time
 import uuid
 from typing import Any, Dict
 
@@ -17,6 +18,9 @@ from ..schemas.analysis import (
     AnalysisMetadata,
     AnalysisRequest,
     AnalysisResult,
+    ContentType,
+    JobListItem,
+    JobListResponse,
     JobResponse,
     JobStatus,
 )
@@ -109,9 +113,9 @@ async def run_analysis_task(
 
     async def update_job(
         status: JobStatus,
-        progress: str = None,
-        result: dict = None,
-        markdown: str = None,
+        progress: str | None = None,
+        result: dict | None = None,
+        markdown: str | None = None,
     ):
         job_data = await redis.get(job_key)
         if job_data:
@@ -136,7 +140,7 @@ async def run_analysis_task(
             )
 
         # Step 1: NORMALIZE
-        normalized = normalize_artifact(content, content_type)
+        normalized = normalize_artifact(content, ContentType(content_type))
         logger.debug(f"Job {job_id}: Normalized into {normalized.kind}")
 
         # Step 2: HEURISTICS
@@ -162,14 +166,6 @@ async def run_analysis_task(
         )
         analysis_data = result.output
 
-        # Log usage and cost metrics
-        usage = result.usage()
-        logger.info(
-            f"Job {job_id}: AI Synthesis complete. "
-            f"Model: {settings.AI_MODEL}, "
-            f"Tokens: {usage.input_tokens} (prompt) / {usage.output_tokens} (completion) / {usage.total_tokens} (total)"
-        )
-
         logger.info(
             f"Job {job_id}: Analysis complete with {len(analysis_data.findings)} findings"
         )
@@ -191,21 +187,6 @@ async def run_analysis_task(
 
     except Exception as e:
         logger.exception(f"Job {job_id}: Analysis failed")
-
-        # DEBUG: Store the raw error details to a file for inspection
-        try:
-            with open("debug_error.json", "w") as f:
-                import json as json_lib
-
-                debug_info = {
-                    "job_id": job_id,
-                    "error": str(e),
-                    "type": type(e).__name__,
-                }
-                f.write(json_lib.dumps(debug_info, indent=2))
-            logger.info(f"Job {job_id}: Debug info saved to debug_error.json")
-        except Exception as debug_e:
-            logger.warning(f"Failed to save debug info: {debug_e}")
 
         await update_job(JobStatus.FAILED, progress=f"Error: {str(e)}")
 
@@ -311,4 +292,48 @@ async def get_job_result(job_id: str):
         status=data["status"],
         result=data.get("result"),
         markdown=data.get("markdown"),
+    )
+
+
+@router.get("/jobs", response_model=JobListResponse)
+async def list_jobs():
+    redis = await get_redis()
+    job_pattern = f"{settings.JOB_KEY_PREFIX}*"
+
+    job_keys = []
+    async for key in redis.scan_iter(match=job_pattern):
+        job_keys.append(key)
+
+    jobs = []
+    current_time_ms = int(time.time() * 1000)
+    for job_key in job_keys:
+        job_data = await redis.get(job_key)
+        if job_data:
+            job_id = job_key.replace(settings.JOB_KEY_PREFIX, "")
+            try:
+                data = json.loads(job_data)
+                ttl = await redis.ttl(job_key)
+                created_at = None
+                if ttl > 0:
+                    elapsed_seconds = settings.JOB_EXPIRATION - ttl
+                    created_at = current_time_ms - (elapsed_seconds * 1000)
+
+                jobs.append(
+                    JobListItem(
+                        job_id=job_id,
+                        status=data.get("status", JobStatus.QUEUED),
+                        progress_hint=data.get("progress_hint"),
+                        created_at=created_at,
+                    )
+                )
+            except (json.JSONDecodeError, KeyError):
+                logger.exception(f"Job {job_id} data is invalid")
+                continue
+
+    jobs.sort(key=lambda x: x.created_at or 0, reverse=True)
+
+    return JobListResponse(
+        jobs=jobs,
+        total=len(jobs),
+        note="Runs older than 60 minutes are automatically cleared from the server.",
     )

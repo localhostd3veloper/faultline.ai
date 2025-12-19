@@ -126,3 +126,16 @@ class AgentInput(BaseModel):
     normalized_artifact: NormalizedArtifact
     heuristic_findings: list[HeuristicFinding]
     metadata: AnalysisMetadata
+
+
+class JobListItem(BaseModel):
+    job_id: str
+    status: JobStatus
+    progress_hint: Optional[str] = None
+    created_at: Optional[float] = None
+
+
+class JobListResponse(BaseModel):
+    jobs: list[JobListItem]
+    total: int
+    note: str = "Runs older than 60 minutes are automatically cleared from Redis."
