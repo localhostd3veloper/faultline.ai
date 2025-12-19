@@ -483,10 +483,71 @@ Mock AI agent for testing:
 
 **Port:** 8080
 
-**Environment Variables:**
+### Environment Variables
 
-- Set via docker-compose or .env file
-- Redis URL for container networking
+**Setup Steps:**
+
+1. Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit `.env` with your configuration values
+
+3. For Docker deployments, environment variables can be set via:
+   - `.env` file (automatically loaded by Pydantic Settings)
+   - `docker-compose.yaml` environment section
+   - Docker `-e` flags or `--env-file`
+
+**Required Variables:**
+
+- `REDIS_URL` - Redis connection string (default: `redis://localhost:6379/0`)
+  - For Docker: use `redis://redis:6379/0` (service name)
+  - Format: `redis://[host]:[port]/[db]`
+
+**AI Provider Configuration:**
+
+Select one AI provider and configure accordingly:
+
+- `AI_PROVIDER` - Provider to use: `openai`, `google`, `groq`, or `ollama` (default: `ollama`)
+- `AI_MODEL` - Model identifier (default: `llama3.1`)
+
+**OpenAI:**
+- `OPENAI_API_KEY` - Your OpenAI API key (required if `AI_PROVIDER=openai`)
+
+**Google (Gemini):**
+- `GEMINI_API_KEY` - Your Google API key (required if `AI_PROVIDER=google`)
+
+**Groq:**
+- `GROQ_API_KEY` - Your Groq API key (required if `AI_PROVIDER=groq`)
+
+**Ollama:**
+- `OLLAMA_BASE_URL` - Ollama server URL (default: `http://localhost:11434/v1`)
+  - For Docker: use `http://host.docker.internal:11434/v1` if Ollama runs on host
+  - Or use service name if Ollama is containerized
+
+**Optional Configuration:**
+
+- `DEMO_MODE` - Bypass AI and use mock responses (default: `false`)
+- `JOB_KEY_PREFIX` - Redis key prefix for jobs (default: `job:`)
+- `CACHE_KEY_PREFIX` - Redis key prefix for cache (default: `cache:`)
+- `JOB_EXPIRATION` - Job TTL in seconds (default: `3600`)
+- `CACHE_EXPIRATION` - Cache TTL in seconds (default: `86400`)
+- `MAX_CONTENT_SIZE` - Max artifact size in bytes (default: `500000`)
+- `MAX_ENDPOINTS` - Max endpoints to process (default: `100`)
+- `MAX_COMPONENTS` - Max components to process (default: `50`)
+- `MAX_SECTIONS` - Max sections to process (default: `50`)
+- `MAX_AI_TOKENS` - Max AI response tokens (default: `4096`)
+- `AI_TEMPERATURE` - AI temperature setting (default: `0.2`)
+- `LOG_LEVEL` - Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR` (default: `INFO`)
+
+**Production Recommendations:**
+
+- Set `LOG_LEVEL=INFO` or `WARNING` in production
+- Use strong API keys and store them securely (secrets manager, not in code)
+- Adjust `MAX_CONTENT_SIZE` based on expected artifact sizes
+- Configure `CACHE_EXPIRATION` based on cache invalidation needs
+- Set `DEMO_MODE=false` for production deployments
 
 ### Health Check
 

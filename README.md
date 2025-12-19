@@ -26,6 +26,11 @@ Production-readiness analysis platform that analyzes engineering artifacts (Open
 git clone https://github.com/your-org/faultline.ai.git
 cd faultline.ai
 
+# Setup env
+make env-setup
+# Or manually create .env files in server and client directories
+
+
 # Start all services
 docker-compose up
 

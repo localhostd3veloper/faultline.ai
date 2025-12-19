@@ -1,7 +1,24 @@
-.PHONY: install dev build docker-up docker-down docker-build clean setup
+.PHONY: install dev build docker-up docker-down docker-build clean setup env-setup
 
 # Full setup for development
-setup: install
+setup: env-setup install
+
+# Environment setup - create .env files from .env.example
+env-setup:
+	@echo "Setting up environment files..."
+	@if [ ! -f server/.env ]; then \
+		cp server/.env.example server/.env && \
+		echo "Created server/.env from server/.env.example"; \
+	else \
+		echo "server/.env already exists, skipping..."; \
+	fi
+	@if [ ! -f client/.env ]; then \
+		cp client/.env.example client/.env && \
+		echo "Created client/.env from client/.env.example"; \
+	else \
+		echo "client/.env already exists, skipping..."; \
+	fi
+	@echo "Environment setup complete. Edit .env files as needed."
 
 # Install all dependencies
 install:

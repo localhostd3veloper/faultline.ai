@@ -46,7 +46,7 @@ else:
 
 if not settings.DEMO_MODE:
 
-    @analysis_agent.system_prompt
+    @analysis_agent.system_prompt # type: ignore
     def get_system_prompt(ctx: RunContext[AgentInput]) -> str:
         return (
             "You are an expert software architect performing a production-readiness review.\n\n"
