@@ -1,18 +1,18 @@
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronRight, XCircle } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getJobResult } from "@/app/actions/analyze";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
-import { FindingsList, NextSteps, ReviewCharts, ScoreRing } from "./components";
+import {
+  CopyableJobId,
+  FindingsList,
+  NextSteps,
+  ReviewCharts,
+  ScoreRing,
+} from "./components";
 
 export default async function ReviewPage({
   params,
@@ -52,63 +52,66 @@ export default async function ReviewPage({
   } = result;
 
   return (
-    <TooltipProvider>
-      <div className="animate-in fade-in mx-auto w-full max-w-6xl px-6 py-10 duration-700">
-        <div className="mb-4 flex items-start justify-between gap-6 border-b pb-4">
-          <div className="flex items-start gap-4">
-            {score !== undefined && <ScoreRing score={score} />}
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold">Analysis Review</h1>
-              <Tooltip>
-                <TooltipTrigger>
-                  <p className="text-muted-foreground mt-1 font-mono text-sm hover:cursor-pointer hover:underline">
-                    Job ID: {jobId}
-                  </p>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Click to copy</TooltipContent>
-              </Tooltip>
-              {summary && (
-                <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed">
-                  {summary}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="shrink-0">
-            <Badge className="gap-2 border-green-500/20 bg-green-500/10 px-3 py-1 text-green-500 hover:bg-green-500/20">
-              <CheckCircle2 className="h-4 w-4" />
-              <span>Analysis Complete</span>
-            </Badge>
+    <div className="animate-in fade-in mx-auto w-full max-w-6xl px-6 py-10 duration-700">
+      <nav className="text-muted-foreground mb-6 flex items-center gap-2 text-sm">
+        <Link href="/" className="hover:text-foreground transition-colors">
+          Home
+        </Link>
+        <ChevronRight className="h-4 w-4" />
+        <Link href="/runs" className="hover:text-foreground transition-colors">
+          Past Runs
+        </Link>
+        <ChevronRight className="h-4 w-4" />
+        <span className="text-foreground">{jobId}</span>
+      </nav>
+
+      <div className="mb-4 flex items-start justify-between gap-6 border-b pb-4">
+        <div className="flex items-start gap-4">
+          {score !== undefined && <ScoreRing score={score} />}
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold">Analysis Review</h1>
+            <CopyableJobId jobId={jobId} />
+            {summary && (
+              <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed">
+                {summary}
+              </p>
+            )}
           </div>
         </div>
-
-        <div className="space-y-8">
-          {charts && (
-            <section>
-              <h2 className="mb-3 text-xl font-semibold">Metrics & Insights</h2>
-              <ReviewCharts charts={charts} />
-            </section>
-          )}
-
-          {findings && (
-            <section>
-              <h2 className="mb-3 text-xl font-semibold">
-                Findings ({findings.length})
-                <p className="text-muted-foreground mb-3 text-sm font-normal">
-                  You can expand each finding to see more details.
-                </p>
-              </h2>
-              <FindingsList findings={findings} />
-            </section>
-          )}
-
-          {suggested_next_steps && (
-            <section>
-              <NextSteps steps={suggested_next_steps} />
-            </section>
-          )}
+        <div className="shrink-0">
+          <Badge className="gap-2 border-green-500/20 bg-green-500/10 px-3 py-1 text-green-500 hover:bg-green-500/20">
+            <CheckCircle2 className="h-4 w-4" />
+            <span>Analysis Complete</span>
+          </Badge>
         </div>
       </div>
-    </TooltipProvider>
+
+      <div className="space-y-8">
+        {charts && (
+          <section>
+            <h2 className="mb-3 text-xl font-semibold">Metrics & Insights</h2>
+            <ReviewCharts charts={charts} />
+          </section>
+        )}
+
+        {findings && (
+          <section>
+            <h2 className="mb-3 text-xl font-semibold">
+              Findings ({findings.length})
+              <p className="text-muted-foreground mb-3 text-sm font-normal">
+                You can expand each finding to see more details.
+              </p>
+            </h2>
+            <FindingsList findings={findings} />
+          </section>
+        )}
+
+        {suggested_next_steps && (
+          <section>
+            <NextSteps steps={suggested_next_steps} />
+          </section>
+        )}
+      </div>
+    </div>
   );
 }

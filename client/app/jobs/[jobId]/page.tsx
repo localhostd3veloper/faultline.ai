@@ -24,7 +24,7 @@ export default function JobPollingPage({
     }
   }, [status, jobId, router]);
 
-  if (error) {
+  if (error && status !== JobStatus.COMPLETED) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <XCircle className="text-destructive h-12 w-12" />
@@ -41,11 +41,9 @@ export default function JobPollingPage({
 
   return (
     <div className="bg-background relative flex h-screen flex-col items-center justify-center overflow-hidden px-6 text-center">
-      {/* Background Glow */}
       <div className="bg-primary/5 absolute top-1/2 left-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[128px]" />
 
       <div className="z-10 flex flex-col items-center gap-12">
-        {/* Simple AI Visual */}
         <div className="relative">
           <div className="bg-primary/20 absolute inset-0 animate-ping rounded-full blur-xl" />
           <div className="bg-primary/10 border-primary/20 relative flex h-20 w-20 items-center justify-center rounded-full border shadow-[0_0_40px_-10px_rgba(var(--primary-rgb),0.3)]">

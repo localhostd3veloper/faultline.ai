@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export default function Footer() {
   return (
-    <footer className="text-secondary-foreground flex justify-center gap-1 px-3 pb-3 text-sm">
+    <footer className="text-secondary-foreground flex justify-center gap-1 p-1 text-sm">
       Made with
       <Heart
         className="text-destructive"

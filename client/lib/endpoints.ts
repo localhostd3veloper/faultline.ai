@@ -5,5 +5,6 @@ export const ENDPOINTS = {
   jobs: {
     status: (jobId: string) => `/jobs/${jobId}`,
     result: (jobId: string) => `/jobs/${jobId}/result`,
+    list: "/jobs",
   },
 } as const;

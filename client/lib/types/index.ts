@@ -59,3 +59,16 @@ export interface AnalysisResult {
   result: AnalysisData;
   markdown: string;
 }
+
+export interface JobListItem {
+  job_id: string;
+  status: JobStatus;
+  progress_hint?: string;
+  created_at?: number;
+}
+
+export interface JobListResponse {
+  jobs: JobListItem[];
+  total: number;
+  note: string;
+}

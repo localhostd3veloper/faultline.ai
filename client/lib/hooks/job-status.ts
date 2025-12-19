@@ -33,7 +33,9 @@ export function useJobStatus(jobId: string) {
       switch (currentStatus) {
         case JobStatus.COMPLETED:
           if (pollInterval) clearInterval(pollInterval);
-          await fetchResult();
+          fetchResult().catch((err) => {
+            console.warn("Background result fetch failed:", err);
+          });
           return false;
         case JobStatus.FAILED:
           if (pollInterval) clearInterval(pollInterval);
@@ -45,12 +47,16 @@ export function useJobStatus(jobId: string) {
     };
 
     const fetchResult = async () => {
-      const { data, error: resultError } = await getJobResult(jobId);
-      if (resultError || !data) {
-        setError(resultError || "Failed to fetch job result");
-        return;
+      try {
+        const { data, error: resultError } = await getJobResult(jobId);
+        if (resultError || !data) {
+          console.warn("Failed to fetch job result:", resultError);
+          return;
+        }
+        setResult(data);
+      } catch (err) {
+        console.warn("Error fetching job result:", err);
       }
-      setResult(data);
     };
 
     const initPolling = async () => {

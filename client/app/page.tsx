@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Link as LinkIcon, Upload } from "lucide-react";
+import { FileText, Link as LinkIcon, Loader2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
@@ -97,9 +97,9 @@ export default function Home() {
   };
 
   return (
-    <section className="mt-[10%] flex h-full w-full grow flex-col items-center px-6 py-4">
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold tracking-tight">
+    <section className="flex h-full w-full grow flex-col items-center px-6 py-4">
+      <div className="mb-4 pt-16 text-center">
+        <h1 className="text-3xl font-semibold tracking-tight">
           Upload or Create Content
         </h1>
         <p className="text-muted-foreground mt-2">
@@ -117,7 +117,7 @@ export default function Home() {
           <div className="flex flex-col gap-4">
             <div
               {...getRootProps()}
-              className={`border-muted-foreground/25 hover:border-muted-foreground/50 flex min-h-40 cursor-pointer flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed transition-colors ${
+              className={`border-muted-foreground/25 hover:border-muted-foreground/50 flex min-h-48 cursor-pointer flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed transition-colors ${
                 isDragActive ? "bg-accent border-primary/50" : ""
               }`}
             >
@@ -154,13 +154,18 @@ export default function Home() {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleUrlSubmit()}
+                disabled={isLoading}
               />
               <Button
                 onClick={handleUrlSubmit}
                 disabled={isLoading || !url.trim()}
               >
-                <LinkIcon className="h-4 w-4" />
-                Fetch
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <LinkIcon className="h-4 w-4" />
+                )}
+                {isLoading ? "Fetching..." : "Fetch"}
               </Button>
             </div>
           </div>

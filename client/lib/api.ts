@@ -1,8 +1,11 @@
-const BACKEND_URL =
-  process.env.BACKEND_API_URL ||
-  (process.env.NODE_ENV === "production"
-    ? "https://api.faultline.ai"
-    : "http://localhost:8080");
+function getBackendUrl(): string {
+  return (
+    process.env.BACKEND_API_URL ||
+    (process.env.NODE_ENV === "production"
+      ? "https://api.faultline.ai"
+      : "http://localhost:8080")
+  );
+}
 
 export interface ApiResponse<T> {
   data: T | null;
@@ -13,7 +16,7 @@ export async function api<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<ApiResponse<T>> {
-  const url = `${BACKEND_URL}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+  const url = `${getBackendUrl()}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
 
   try {
     const response = await fetch(url, {

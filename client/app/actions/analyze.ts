@@ -2,7 +2,12 @@
 
 import { api } from "@/lib/api";
 import { ENDPOINTS } from "@/lib/endpoints";
-import { AnalysisResult, AnalyzeRequest, JobResponse } from "@/lib/types";
+import {
+  AnalysisResult,
+  AnalyzeRequest,
+  JobListResponse,
+  JobResponse,
+} from "@/lib/types";
 
 export async function analyzeArtifact(data: AnalyzeRequest) {
   if (!data.content || !data.contentType) {
@@ -25,4 +30,8 @@ export async function getJobStatus(jobId: string) {
 
 export async function getJobResult(jobId: string) {
   return api<AnalysisResult>(ENDPOINTS.jobs.result(jobId));
+}
+
+export async function getJobList() {
+  return api<JobListResponse>(ENDPOINTS.jobs.list);
 }
