@@ -40,6 +40,7 @@ server/
 ### `app/main.py`
 
 **FastAPI Application:**
+
 - Title: "Faultline AI API"
 - Lifespan context manager for startup/shutdown
 - CORS middleware (currently permissive)
@@ -47,10 +48,12 @@ server/
 - Health check endpoint
 
 **Lifespan Events:**
+
 - Startup: Connect to Redis
 - Shutdown: Disconnect from Redis
 
 **Logging:**
+
 - Loguru configured with colorized output
 - Format: timestamp | level | location | message
 - Log level from settings
@@ -60,6 +63,7 @@ server/
 ### `app/config.py`
 
 **Settings Class:**
+
 - Inherits from `PydanticSettings`
 - Loads from environment variables
 - `.env` file support
@@ -67,6 +71,7 @@ server/
 **Configuration Categories:**
 
 1. **Redis Settings:**
+
    - `REDIS_URL` - Connection string (default: `redis://localhost:6379/0`)
    - `JOB_KEY_PREFIX` - Job key prefix (default: `"job:"`)
    - `CACHE_KEY_PREFIX` - Cache key prefix (default: `"cache:"`)
@@ -74,6 +79,7 @@ server/
    - `CACHE_EXPIRATION` - Cache TTL in seconds (default: 86400)
 
 2. **AI Configuration:**
+
    - `DEMO_MODE` - Bypass AI (default: False)
    - `AI_PROVIDER` - openai|google|groq|ollama (default: ollama)
    - `AI_MODEL` - Model identifier (default: "llama3.1")
@@ -85,6 +91,7 @@ server/
    - `AI_TEMPERATURE` - Temperature (default: 0.2)
 
 3. **Artifact Constraints:**
+
    - `MAX_CONTENT_SIZE` - Max bytes (default: 500000)
    - `MAX_ENDPOINTS` - Max endpoints (default: 100)
    - `MAX_COMPONENTS` - Max components (default: 50)
@@ -94,6 +101,7 @@ server/
    - `LOG_LEVEL` - Log level (default: "INFO")
 
 **Model Factory:**
+
 - `get_model()` - Returns configured Pydantic AI model
 - Supports multiple providers
 - Provider-specific initialization
@@ -105,6 +113,7 @@ server/
 **Endpoints:**
 
 1. **POST `/artifacts/analyze`**
+
    - Submit artifact for analysis
    - Request: `AnalysisRequest` (content, content_type, metadata)
    - Response: `JobResponse` (job_id, status, progress_hint)
@@ -115,11 +124,13 @@ server/
      - If cache miss: creates job, queues background task, returns job_id
 
 2. **GET `/jobs/{job_id}`**
+
    - Get job status
    - Response: `JobResponse`
    - Returns 404 if job not found
 
 3. **GET `/jobs/{job_id}/result`**
+
    - Get analysis result
    - Response: `AnalysisResult`
    - Returns 400 if job not completed
@@ -137,23 +148,28 @@ server/
 Async function that processes analysis:
 
 1. **Size Guardrail:**
+
    - Checks content size against `MAX_CONTENT_SIZE`
    - Raises ValueError if exceeded
 
 2. **Normalization:**
+
    - Calls `normalize_artifact()` based on content type
    - Updates job status: "Normalizing artifact..."
 
 3. **Heuristics:**
+
    - Calls `run_heuristics()` on normalized artifact
    - Updates job status: "Running heuristics..."
 
 4. **AI Synthesis:**
+
    - Prepares `AgentInput` with normalized artifact, findings, metadata
    - Calls AI agent with system prompt
    - Updates job status: "Synthesizing with AI..."
 
 5. **Result Storage:**
+
    - Updates job with COMPLETED status
    - Stores result and markdown in Redis
    - Caches result with content hash
@@ -166,6 +182,7 @@ Async function that processes analysis:
 ### Feedback Router (`app/routers/feedback.py`)
 
 **POST `/feedback`**
+
 - Stub endpoint
 - Returns success message
 - TODO: Implement feedback storage
@@ -179,6 +196,7 @@ Async function that processes analysis:
 Converts raw content into structured `NormalizedArtifact`:
 
 **OpenAPI Normalization:**
+
 - Parses JSON/YAML
 - Extracts endpoints from `paths`
 - For each endpoint:
@@ -190,6 +208,7 @@ Converts raw content into structured `NormalizedArtifact`:
 - Limits to `MAX_ENDPOINTS`
 
 **Architecture Normalization:**
+
 - Regex extraction of services/microservices
 - Keyword search for components:
   - Database: postgres, mysql, mongodb, redis, db, database
@@ -198,6 +217,7 @@ Converts raw content into structured `NormalizedArtifact`:
 - Limits to `MAX_COMPONENTS`
 
 **Markdown Normalization:**
+
 - Splits by heading lines (starting with `#`)
 - Creates sections dictionary
 - Limits to `MAX_SECTIONS`
@@ -209,18 +229,22 @@ Converts raw content into structured `NormalizedArtifact`:
 Rule-based analysis generating `HeuristicFinding` objects:
 
 **OpenAPI Heuristics:**
+
 - Unsecured write endpoints (non-GET without security)
 - Missing pagination (GET endpoints with "list" in path)
 - Missing API versioning (no version in paths or headers)
 
 **Architecture Heuristics:**
+
 - Missing security architecture (no auth/security keywords)
 - Single point of failure (single database or monolithic structure)
 
 **Markdown Heuristics:**
+
 - Missing documentation sections (security, scaling, deployment, monitoring)
 
 **Finding Structure:**
+
 - title: Short description
 - description: Detailed explanation
 - category: Security|Reliability|Documentation|Maintainability|Performance
@@ -235,6 +259,7 @@ Rule-based analysis generating `HeuristicFinding` objects:
 **`DemoAnalysisAgent`**
 
 Mock AI agent for testing:
+
 - Simulates 3-second processing delay
 - Generates realistic analysis data
 - Uses heuristic findings as base
@@ -247,6 +272,7 @@ Mock AI agent for testing:
 ### Schemas (`app/schemas/analysis.py`)
 
 **Enums:**
+
 - `Severity`: HIGH, MEDIUM, LOW
 - `ContentType`: MARKDOWN, OPENAPI_YAML, OPENAPI_JSON, ARCHITECTURE
 - `JobStatus`: QUEUED, RUNNING, COMPLETED, FAILED
@@ -254,45 +280,59 @@ Mock AI agent for testing:
 **Core Models:**
 
 1. **Endpoint**
+
    - path, method, secured, has_pagination, has_versioning
 
 2. **Component**
+
    - name, type, description (optional)
 
 3. **NormalizedArtifact**
+
    - kind, services, endpoints, components, raw_sections
 
 4. **HeuristicFinding**
+
    - title, description, category, severity, confidence, source, rationale, remediation
 
 5. **AnalysisMetadata**
+
    - repo, team, risk_tolerance, depth (all optional)
 
 6. **AnalysisRequest**
+
    - content, content_type, metadata
 
 7. **JobResponse**
+
    - job_id, status, progress_hint
 
 8. **Finding**
+
    - title, description, category, severity, rationale, remediation
 
 9. **ChartDataPoint**
+
    - label, value
 
 10. **Chart**
+
     - title, type, description, data
 
 11. **AnalysisData**
+
     - production_readiness_score, summary, findings, charts, suggested_next_steps, markdown_report
 
 12. **AnalysisResult**
+
     - job_id, status, result, markdown
 
 13. **AgentInput**
+
     - normalized_artifact, heuristic_findings, metadata
 
 14. **JobListItem**
+
     - job_id, status, progress_hint, created_at
 
 15. **JobListResponse**
@@ -303,6 +343,7 @@ Mock AI agent for testing:
 ### Connection Management (`app/redis_client.py`)
 
 **RedisClient Class:**
+
 - Singleton pattern
 - Async connection via `redis.asyncio`
 - `connect()` - Initialize connection
@@ -310,9 +351,11 @@ Mock AI agent for testing:
 - `get_client()` - Get connection instance
 
 **Helper:**
+
 - `get_redis()` - Convenience function
 
 **Usage:**
+
 - Called during FastAPI lifespan
 - Used in routers for job/cache operations
 - Decode responses enabled
@@ -322,6 +365,7 @@ Mock AI agent for testing:
 ### Pydantic AI Agent
 
 **Agent Configuration:**
+
 - Model from settings
 - Output type: `AnalysisData`
 - Dependencies type: `AgentInput`
@@ -330,6 +374,7 @@ Mock AI agent for testing:
 - Model settings: max_tokens, temperature
 
 **System Prompt:**
+
 - Expert software architect persona
 - Interpretation rules for confidence levels
 - Tasks: prioritize findings, compute score, generate summary, create charts
@@ -337,11 +382,13 @@ Mock AI agent for testing:
 - Input data provided as JSON in prompt
 
 **Agent Input:**
+
 - Normalized artifact
 - Heuristic findings
 - Metadata
 
 **Agent Output:**
+
 - Structured `AnalysisData` via Pydantic validation
 - Guaranteed schema compliance
 
@@ -428,6 +475,7 @@ Mock AI agent for testing:
 **Base Image:** Python 3.12 slim
 
 **Build Process:**
+
 1. Install UV package manager
 2. Copy application code
 3. Run `uv sync --locked --no-cache`
@@ -436,12 +484,14 @@ Mock AI agent for testing:
 **Port:** 8080
 
 **Environment Variables:**
+
 - Set via docker-compose or .env file
 - Redis URL for container networking
 
 ### Health Check
 
 **GET `/health`**
+
 - Returns `{"status": "healthy"}`
 - Used by load balancers
 - No dependencies checked (TODO: add Redis health check)
@@ -470,4 +520,3 @@ Currently no tests. Recommended:
 - Background job retry logic
 - Job cancellation
 - Batch analysis support
-

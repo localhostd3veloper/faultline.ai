@@ -33,6 +33,7 @@ Faultline.ai is a production-readiness analysis platform that analyzes engineeri
 ### 1. Frontend (Client)
 
 **Technology Stack:**
+
 - Next.js 16.0.10 (App Router)
 - React 19.2.1
 - TypeScript 5
@@ -42,12 +43,14 @@ Faultline.ai is a production-readiness analysis platform that analyzes engineeri
 - Recharts (data visualization)
 
 **Key Directories:**
+
 - `app/` - Next.js App Router pages and routes
 - `components/` - Reusable UI components
 - `lib/` - Utilities, API client, hooks, types
 - `public/` - Static assets
 
 **Deployment:**
+
 - Dockerized with multi-stage build
 - Uses Bun runtime
 - Standalone output mode for optimized builds
@@ -55,6 +58,7 @@ Faultline.ai is a production-readiness analysis platform that analyzes engineeri
 ### 2. Backend (Server)
 
 **Technology Stack:**
+
 - FastAPI (Python 3.12+)
 - Pydantic AI for LLM integration
 - Redis for job state and caching
@@ -62,6 +66,7 @@ Faultline.ai is a production-readiness analysis platform that analyzes engineeri
 - UV package manager
 
 **Key Directories:**
+
 - `app/main.py` - FastAPI application entry point
 - `app/routers/` - API route handlers
 - `app/logic/` - Business logic (normalization, heuristics)
@@ -70,6 +75,7 @@ Faultline.ai is a production-readiness analysis platform that analyzes engineeri
 - `app/redis_client.py` - Redis connection management
 
 **Deployment:**
+
 - Dockerized with Python 3.12 slim base
 - Uses UV for dependency management
 - Runs on port 8080
@@ -77,11 +83,13 @@ Faultline.ai is a production-readiness analysis platform that analyzes engineeri
 ### 3. Redis
 
 **Purpose:**
+
 - Job state management (queued, running, completed, failed)
 - Result caching (24-hour TTL)
 - Job listing and retrieval
 
 **Key Patterns:**
+
 - `job:{job_id}` - Job state storage
 - `cache:{content_hash}` - Analysis result cache
 - TTL-based expiration (1 hour for jobs, 24 hours for cache)
@@ -89,12 +97,14 @@ Faultline.ai is a production-readiness analysis platform that analyzes engineeri
 ### 4. AI System
 
 **Providers Supported:**
+
 - OpenAI (GPT models)
 - Google (Gemini)
 - Groq
 - Ollama (local models)
 
 **Integration:**
+
 - Pydantic AI framework
 - Structured output via Pydantic models
 - Configurable model settings (temperature, max tokens)
@@ -141,16 +151,19 @@ QUEUED → RUNNING → COMPLETED
 ### REST Endpoints
 
 **Analysis:**
+
 - `POST /artifacts/analyze` - Submit artifact for analysis
 - `GET /jobs/{job_id}` - Get job status
 - `GET /jobs/{job_id}/result` - Get analysis result
 - `GET /jobs` - List all jobs
 
 **System:**
+
 - `GET /health` - Health check
 - `GET /` - API root
 
 **Feedback:**
+
 - `POST /feedback` - Submit feedback (stub)
 
 ### Request/Response Models
@@ -172,11 +185,13 @@ Converts raw content into structured `NormalizedArtifact`:
 Rule-based analysis that generates `HeuristicFinding` objects:
 
 - **OpenAPI Heuristics:**
+
   - Unsecured write endpoints
   - Missing pagination on list endpoints
   - Missing API versioning
 
 - **Architecture Heuristics:**
+
   - Missing security architecture
   - Single points of failure
 
@@ -186,11 +201,13 @@ Rule-based analysis that generates `HeuristicFinding` objects:
 ### Step 3: AI Synthesis
 
 Pydantic AI agent processes:
+
 - Normalized artifact
 - Heuristic findings
 - Metadata (repo, team, risk tolerance, depth)
 
 Outputs:
+
 - Production readiness score (0-100)
 - Executive summary
 - Enhanced findings list
@@ -203,6 +220,7 @@ Outputs:
 ### Environment Variables
 
 **Backend:**
+
 - `REDIS_URL` - Redis connection string
 - `DEMO_MODE` - Enable demo mode (bypasses AI)
 - `AI_PROVIDER` - openai|google|groq|ollama
@@ -217,6 +235,7 @@ Outputs:
 - `LOG_LEVEL` - Logging level
 
 **Frontend:**
+
 - `BACKEND_API_URL` - Backend API URL
 - `NODE_ENV` - Environment (development|production)
 
@@ -234,6 +253,7 @@ Outputs:
 ### Docker Compose
 
 Three services:
+
 1. **server** - FastAPI backend
 2. **client** - Next.js frontend
 3. **redis** - Redis cache
@@ -241,6 +261,7 @@ Three services:
 ### Build Process
 
 **Backend:**
+
 ```dockerfile
 1. Python 3.12 slim base
 2. Install UV package manager
@@ -250,6 +271,7 @@ Three services:
 ```
 
 **Frontend:**
+
 ```dockerfile
 1. Bun slim base
 2. Install dependencies
@@ -300,26 +322,29 @@ Three services:
 ## Technology Decisions
 
 **Why FastAPI?**
+
 - Async/await support
 - Automatic OpenAPI docs
 - Type safety with Pydantic
 - High performance
 
 **Why Next.js App Router?**
+
 - Server components for better performance
 - Built-in routing
 - API routes capability
 - React Server Components
 
 **Why Redis?**
+
 - Fast in-memory storage
 - TTL support for automatic cleanup
 - Simple key-value model fits job state
 - No need for complex queries
 
 **Why Pydantic AI?**
+
 - Structured output guarantees
 - Type-safe AI integration
 - Multiple provider support
 - Built-in retry logic
-

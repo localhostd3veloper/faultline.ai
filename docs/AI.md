@@ -11,6 +11,7 @@ The AI system in Faultline.ai uses Pydantic AI to integrate with multiple LLM pr
 **Framework:** Pydantic AI 1.35.0+
 
 **Purpose:**
+
 - Structured output guarantees via Pydantic models
 - Type-safe AI integration
 - Multiple provider abstraction
@@ -21,6 +22,7 @@ The AI system in Faultline.ai uses Pydantic AI to integrate with multiple LLM pr
 **Location:** `server/app/routers/analysis.py`
 
 **Agent Setup:**
+
 ```python
 analysis_agent = Agent(
     model=settings.get_model(),
@@ -36,6 +38,7 @@ analysis_agent = Agent(
 ```
 
 **Configuration:**
+
 - Retries: 3 attempts on failure
 - Output retries: 3 attempts for valid schema
 - Max tokens: 4096 (configurable)
@@ -46,15 +49,18 @@ analysis_agent = Agent(
 ### 1. OpenAI
 
 **Configuration:**
+
 - Provider: `openai`
 - Model: Any OpenAI model identifier (e.g., `gpt-4`, `gpt-3.5-turbo`)
 - API Key: `OPENAI_API_KEY` environment variable
 
 **Implementation:**
+
 - Uses `OpenAIChatModel` from Pydantic AI
 - `OpenAIProvider` with API key
 
 **Usage:**
+
 ```python
 AI_PROVIDER=openai
 AI_MODEL=gpt-4
@@ -64,15 +70,18 @@ OPENAI_API_KEY=sk-...
 ### 2. Google (Gemini)
 
 **Configuration:**
+
 - Provider: `google`
 - Model: Gemini model identifier
 - API Key: `GEMINI_API_KEY` environment variable
 
 **Implementation:**
+
 - Uses `GoogleModel` from Pydantic AI
 - `GoogleProvider` with API key
 
 **Usage:**
+
 ```python
 AI_PROVIDER=google
 AI_MODEL=gemini-pro
@@ -82,15 +91,18 @@ GEMINI_API_KEY=...
 ### 3. Groq
 
 **Configuration:**
+
 - Provider: `groq`
 - Model: Groq model identifier
 - API Key: `GROQ_API_KEY` environment variable
 
 **Implementation:**
+
 - Uses `GroqModel` from Pydantic AI
 - `GroqProvider` with API key
 
 **Usage:**
+
 ```python
 AI_PROVIDER=groq
 AI_MODEL=llama-3.1-70b-versatile
@@ -100,16 +112,19 @@ GROQ_API_KEY=...
 ### 4. Ollama (Local)
 
 **Configuration:**
+
 - Provider: `ollama`
 - Model: Local model name (e.g., `llama3.1`)
 - Base URL: `OLLAMA_BASE_URL` (default: `http://localhost:11434/v1`)
 
 **Implementation:**
+
 - Uses `OpenAIChatModel` with `OllamaProvider`
 - Compatible with OpenAI API format
 - No API key required
 
 **Usage:**
+
 ```python
 AI_PROVIDER=ollama
 AI_MODEL=llama3.1
@@ -117,6 +132,7 @@ OLLAMA_BASE_URL=http://localhost:11434/v1
 ```
 
 **Setup:**
+
 ```bash
 # Install Ollama
 curl -fsSL https://ollama.ai/install.sh | sh
@@ -134,12 +150,14 @@ ollama pull llama3.1
 **Function:** `get_model()`
 
 **Behavior:**
+
 - Reads `AI_PROVIDER` setting
 - Dynamically imports provider-specific models
 - Returns configured model instance
 - Raises error for unsupported providers
 
 **Provider Selection:**
+
 ```python
 match self.AI_PROVIDER:
     case "openai":
@@ -157,6 +175,7 @@ match self.AI_PROVIDER:
 **Location:** `server/app/routers/analysis.py`
 
 **Purpose:**
+
 - Defines agent persona (expert software architect)
 - Sets interpretation rules
 - Specifies tasks
@@ -165,15 +184,18 @@ match self.AI_PROVIDER:
 **Key Sections:**
 
 1. **Persona:**
+
    - Expert software architect
    - Production-readiness review specialist
 
 2. **Input Data:**
+
    - Normalized artifact
    - Heuristic findings with confidence levels
    - Metadata
 
 3. **Interpretation Rules:**
+
    - High confidence = factual
    - Medium confidence = likely but uncertain
    - Low confidence = weak signals, don't overemphasize
@@ -181,6 +203,7 @@ match self.AI_PROVIDER:
    - Don't invent technologies or failures
 
 4. **Tasks:**
+
    - Prioritize findings by production risk
    - Provide actionable remediation
    - Compute production readiness score (0-100)
@@ -200,7 +223,8 @@ match self.AI_PROVIDER:
    - Charts must be realistic and consistent
 
 **Prompt Structure:**
-```
+
+````
 You are an expert software architect...
 
 INTERPRETATION RULES:
@@ -215,9 +239,11 @@ OUTPUT RULES (STRICT):
 BEGIN INPUT DATA (READ-ONLY):
 ```json
 {agent_input_json}
-```
+````
+
 END INPUT DATA
-```
+
+````
 
 ## Input Data Structure
 
@@ -312,7 +338,7 @@ agent_input = AgentInput(
     heuristic_findings=heuristic_findings,
     metadata=AnalysisMetadata(**metadata),
 )
-```
+````
 
 ### 2. Agent Execution
 
@@ -341,16 +367,19 @@ markdown = analysis_data.markdown_report
 **Location:** `server/app/logic/demo.py`
 
 **Purpose:**
+
 - Bypass AI for testing
 - Generate realistic mock data
 - Simulate processing delay
 
 **Activation:**
+
 ```python
 DEMO_MODE=True
 ```
 
 **Behavior:**
+
 - Uses `DemoAnalysisAgent` instead of real agent
 - 3-second delay to simulate processing
 - Generates analysis from heuristic findings
@@ -358,6 +387,7 @@ DEMO_MODE=True
 - Calculates score based on findings
 
 **Use Cases:**
+
 - Development without API keys
 - Testing without AI costs
 - CI/CD pipelines
@@ -368,6 +398,7 @@ DEMO_MODE=True
 ### Retry Logic
 
 **Agent-Level:**
+
 - 3 retries on agent failure
 - 3 output retries for schema validation
 - Automatic backoff (handled by Pydantic AI)
@@ -375,6 +406,7 @@ DEMO_MODE=True
 ### Validation Errors
 
 **Pydantic Validation:**
+
 - Output must match `AnalysisData` schema
 - Automatic validation on agent response
 - Raises error if invalid
@@ -382,6 +414,7 @@ DEMO_MODE=True
 ### Timeout Handling
 
 **Not Currently Configured:**
+
 - TODO: Add timeout to agent calls
 - Prevent hanging on slow models
 
@@ -390,6 +423,7 @@ DEMO_MODE=True
 ### Token Limits
 
 **Max Tokens:** 4096 (configurable)
+
 - Input: Normalized artifact + findings + metadata
 - Output: Analysis data + markdown report
 - May truncate for large artifacts
@@ -397,6 +431,7 @@ DEMO_MODE=True
 ### Processing Time
 
 **Varies by Provider:**
+
 - OpenAI GPT-4: ~5-15 seconds
 - Groq: ~2-5 seconds
 - Ollama (local): ~10-30 seconds (depends on hardware)
@@ -405,6 +440,7 @@ DEMO_MODE=True
 ### Caching
 
 **Content Hash Caching:**
+
 - Results cached by content hash
 - 24-hour TTL
 - Reduces redundant AI calls
@@ -415,12 +451,14 @@ DEMO_MODE=True
 ### Token Usage
 
 **Input Tokens:**
+
 - Normalized artifact JSON
 - Heuristic findings
 - Metadata
 - System prompt
 
 **Output Tokens:**
+
 - Analysis data JSON
 - Markdown report
 - Charts data
@@ -428,18 +466,22 @@ DEMO_MODE=True
 ### Provider Costs
 
 **OpenAI:**
+
 - GPT-4: ~$0.03/1K input, $0.06/1K output
 - GPT-3.5-turbo: ~$0.0015/1K input, $0.002/1K output
 
 **Groq:**
+
 - Fast inference, competitive pricing
 - Good for high-volume usage
 
 **Google:**
+
 - Gemini Pro: Competitive pricing
 - Free tier available
 
 **Ollama:**
+
 - Free (local compute)
 - No API costs
 - Requires local infrastructure
@@ -449,23 +491,27 @@ DEMO_MODE=True
 ### Model Selection
 
 **For Production:**
+
 - Use GPT-4 or equivalent for accuracy
 - Consider Groq for speed/cost balance
 - Use Ollama for privacy-sensitive deployments
 
 **For Development:**
+
 - Use demo mode or Ollama
 - Avoid unnecessary API calls
 
 ### Prompt Engineering
 
 **Current Approach:**
+
 - Detailed system prompt
 - Structured input data
 - Strict output format
 - Clear interpretation rules
 
 **Improvements:**
+
 - A/B test prompt variations
 - Fine-tune for specific artifact types
 - Add few-shot examples
@@ -473,6 +519,7 @@ DEMO_MODE=True
 ### Error Handling
 
 **Recommended:**
+
 - Log all AI errors
 - Track token usage
 - Monitor response times
@@ -491,10 +538,12 @@ DEMO_MODE=True
 ### Logging
 
 **Current:**
+
 - Job start/completion logged
 - Errors logged with stack traces
 
 **Recommended:**
+
 - Log token counts
 - Log provider used
 - Log response times
@@ -539,4 +588,3 @@ DEMO_MODE=True
 - Consistency checks
 - Human review workflow
 - Feedback loop integration
-

@@ -13,20 +13,22 @@ Redis is used as the primary data store for job state management and result cach
 **Pattern:** Singleton
 
 **Implementation:**
+
 ```python
 class RedisClient:
     _instance: Optional[redis.Redis] = None
-    
+
     @classmethod
     async def connect(cls):
         # Initialize connection
-    
+
     @classmethod
     def get_client(cls) -> redis.Redis:
         # Get connection instance
 ```
 
 **Connection:**
+
 - Async Redis client (`redis.asyncio`)
 - URL-based connection string
 - Decode responses enabled (returns strings, not bytes)
@@ -42,6 +44,7 @@ class RedisClient:
 **Format:** `redis://[host]:[port]/[db]`
 
 **Docker Compose:**
+
 - Service name: `redis`
 - Image: `redis:alpine`
 - Port: `6379`
@@ -56,6 +59,7 @@ class RedisClient:
 **Prefix:** `JOB_KEY_PREFIX` (default: `"job:"`)
 
 **Structure:**
+
 ```json
 {
   "job_id": "uuid-string",
@@ -71,12 +75,14 @@ class RedisClient:
 **TTL:** `JOB_EXPIRATION` (default: 3600 seconds = 1 hour)
 
 **Operations:**
+
 - `SET` - Create/update job
 - `GET` - Retrieve job
 - `TTL` - Get remaining expiration time
 - `SCAN` - List all jobs (for `/jobs` endpoint)
 
 **Example:**
+
 ```python
 job_key = f"{settings.JOB_KEY_PREFIX}{job_id}"
 job_data = {
@@ -98,6 +104,7 @@ await redis.set(job_key, json.dumps(job_data), ex=settings.JOB_EXPIRATION)
 **Content Hash:** SHA256 of artifact content
 
 **Structure:**
+
 ```json
 {
   "result": {
@@ -114,15 +121,18 @@ await redis.set(job_key, json.dumps(job_data), ex=settings.JOB_EXPIRATION)
 **TTL:** `CACHE_EXPIRATION` (default: 86400 seconds = 24 hours)
 
 **Purpose:**
+
 - Avoid redundant AI processing
 - Instant results for duplicate content
 - Significant cost/time savings
 
 **Operations:**
+
 - `SET` - Cache result
 - `GET` - Retrieve cached result
 
 **Example:**
+
 ```python
 content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
 cache_key = f"{settings.CACHE_KEY_PREFIX}{content_hash}"
@@ -202,6 +212,7 @@ await redis.set(cache_key, json.dumps(cache_data), ex=settings.CACHE_EXPIRATION)
 ### Job Operations
 
 **Create Job:**
+
 ```python
 job_key = f"{settings.JOB_KEY_PREFIX}{job_id}"
 job_data = json.dumps({
@@ -215,6 +226,7 @@ await redis.set(job_key, job_data, ex=settings.JOB_EXPIRATION)
 ```
 
 **Update Job:**
+
 ```python
 job_data = await redis.get(job_key)
 data = json.loads(job_data)
@@ -228,6 +240,7 @@ await redis.set(job_key, json.dumps(data), ex=settings.JOB_EXPIRATION)
 ```
 
 **Get Job:**
+
 ```python
 job_data = await redis.get(job_key)
 if not job_data:
@@ -236,6 +249,7 @@ data = json.loads(job_data)
 ```
 
 **List Jobs:**
+
 ```python
 job_pattern = f"{settings.JOB_KEY_PREFIX}*"
 job_keys = []
@@ -258,6 +272,7 @@ for job_key in job_keys:
 ### Cache Operations
 
 **Check Cache:**
+
 ```python
 cache_key = f"{settings.CACHE_KEY_PREFIX}{content_hash}"
 cached_result = await redis.get(cache_key)
@@ -267,6 +282,7 @@ if cached_result:
 ```
 
 **Store Cache:**
+
 ```python
 cache_data = {
     "result": result_payload,
@@ -282,16 +298,19 @@ await redis.set(cache_key, json.dumps(cache_data), ex=settings.CACHE_EXPIRATION)
 **TTL:** 1 hour (3600 seconds)
 
 **Purpose:**
+
 - Automatic cleanup of old jobs
 - Prevent unbounded growth
 - Memory management
 
 **Calculation:**
+
 - Set on job creation
 - Reset on each update (maintains expiration)
 - Can calculate `created_at` from remaining TTL
 
 **Example:**
+
 ```python
 ttl = await redis.ttl(job_key)
 if ttl > 0:
@@ -304,11 +323,13 @@ if ttl > 0:
 **TTL:** 24 hours (86400 seconds)
 
 **Purpose:**
+
 - Balance between cache hits and freshness
 - Allow updates to analysis logic
 - Reasonable storage duration
 
 **Note:**
+
 - Cache persists longer than jobs
 - Same content can be analyzed multiple times within 24 hours
 - After expiration, analysis runs again (may get updated results)
@@ -318,16 +339,19 @@ if ttl > 0:
 ### JSON Format
 
 **All data stored as JSON strings:**
+
 - `json.dumps()` for storage
 - `json.loads()` for retrieval
 - Ensures compatibility and readability
 
 **Benefits:**
+
 - Human-readable in Redis CLI
 - Easy debugging
 - No binary encoding issues
 
 **Example:**
+
 ```python
 # Store
 data = {"status": "completed", "result": {...}}
@@ -343,16 +367,19 @@ data = json.loads(raw_data)
 ### Connection Errors
 
 **Handled in:**
+
 - `RedisClient.connect()` - Logs connection errors
 - FastAPI lifespan - Fails startup if Redis unavailable
 
 **Recovery:**
+
 - Automatic reconnection (handled by redis.asyncio)
 - Connection pool management
 
 ### Key Not Found
 
 **Job Not Found:**
+
 ```python
 job_data = await redis.get(job_key)
 if not job_data:
@@ -360,6 +387,7 @@ if not job_data:
 ```
 
 **Cache Miss:**
+
 ```python
 cached = await redis.get(cache_key)
 if not cached:
@@ -369,6 +397,7 @@ if not cached:
 ### JSON Parsing Errors
 
 **Handled:**
+
 ```python
 try:
     data = json.loads(job_data)
@@ -382,11 +411,13 @@ except json.JSONDecodeError:
 ### Read Performance
 
 **Job Lookup:**
+
 - O(1) key lookup
 - Fast in-memory access
 - Sub-millisecond response
 
 **Cache Lookup:**
+
 - O(1) key lookup
 - Instant results for cached content
 - Significant time savings
@@ -394,11 +425,13 @@ except json.JSONDecodeError:
 ### Write Performance
 
 **Job Updates:**
+
 - O(1) key update
 - Atomic operations
 - No locking required
 
 **Cache Writes:**
+
 - O(1) key write
 - Background operation
 - Doesn't block requests
@@ -406,16 +439,19 @@ except json.JSONDecodeError:
 ### Memory Usage
 
 **Job Storage:**
+
 - ~1-5 KB per job (depends on result size)
 - Auto-expiration prevents growth
 - 1000 jobs ≈ 1-5 MB
 
 **Cache Storage:**
+
 - ~10-50 KB per cached result
 - 24-hour TTL
 - 1000 cached results ≈ 10-50 MB
 
 **Total:**
+
 - Typical deployment: < 100 MB
 - High volume: < 1 GB
 - Redis handles efficiently
@@ -425,11 +461,13 @@ except json.JSONDecodeError:
 ### Current Limitations
 
 **Single Instance:**
+
 - No clustering
 - No replication
 - Single point of failure
 
 **Memory Bound:**
+
 - All data in RAM
 - Limited by server memory
 - TTL helps but not perfect
@@ -437,16 +475,19 @@ except json.JSONDecodeError:
 ### Future Improvements
 
 **Redis Cluster:**
+
 - Horizontal scaling
 - Sharding across nodes
 - High availability
 
 **Persistence:**
+
 - RDB snapshots
 - AOF (Append Only File)
 - Durability guarantees
 
 **Replication:**
+
 - Master-replica setup
 - Read scaling
 - Failover support
@@ -456,16 +497,19 @@ except json.JSONDecodeError:
 ### Key Metrics
 
 **Memory Usage:**
+
 - `INFO memory` - Total memory
 - `INFO keyspace` - Key counts
 - Monitor for growth
 
 **Operations:**
+
 - `INFO stats` - Command statistics
 - Track SET/GET operations
 - Monitor error rates
 
 **TTL:**
+
 - Track expiring keys
 - Monitor cache hit rate
 - Job completion rate
@@ -473,6 +517,7 @@ except json.JSONDecodeError:
 ### Redis CLI Commands
 
 **Inspect Jobs:**
+
 ```bash
 redis-cli KEYS "job:*"
 redis-cli GET "job:abc123"
@@ -480,18 +525,21 @@ redis-cli TTL "job:abc123"
 ```
 
 **Inspect Cache:**
+
 ```bash
 redis-cli KEYS "cache:*"
 redis-cli GET "cache:sha256hash"
 ```
 
 **Memory Info:**
+
 ```bash
 redis-cli INFO memory
 redis-cli INFO keyspace
 ```
 
 **Stats:**
+
 ```bash
 redis-cli INFO stats
 ```
@@ -501,6 +549,7 @@ redis-cli INFO stats
 ### Current State
 
 **No Persistence:**
+
 - Data lost on restart
 - Acceptable for current use case (jobs expire quickly)
 - Cache can be regenerated
@@ -508,11 +557,13 @@ redis-cli INFO stats
 ### Recommended
 
 **RDB Snapshots:**
+
 - Periodic snapshots
 - Save to disk
 - Restore on restart
 
 **AOF:**
+
 - Append-only file
 - Every write logged
 - Better durability
@@ -522,6 +573,7 @@ redis-cli INFO stats
 ### Network Security
 
 **Docker:**
+
 - Redis only accessible within Docker network
 - Not exposed to public internet
 - Internal service communication
@@ -529,10 +581,12 @@ redis-cli INFO stats
 ### Authentication
 
 **Current:**
+
 - No password (internal network)
 - Acceptable for containerized deployment
 
 **Production:**
+
 - Add Redis password
 - Use AUTH command
 - Restrict network access
@@ -542,22 +596,26 @@ redis-cli INFO stats
 ### Common Issues
 
 **Connection Refused:**
+
 - Check Redis is running
 - Verify REDIS_URL
 - Check Docker network
 
 **Key Not Found:**
+
 - Job expired (TTL reached)
 - Wrong job_id
 - Key format mismatch
 
 **Memory Issues:**
+
 - Too many jobs/cache entries
 - Increase TTL expiration
 - Add memory limits
 - Monitor with `INFO memory`
 
 **Slow Operations:**
+
 - Check Redis performance
 - Monitor connection count
 - Check for blocking operations
@@ -565,16 +623,19 @@ redis-cli INFO stats
 ### Debugging
 
 **Enable Logging:**
+
 - Set `LOG_LEVEL=DEBUG`
 - See Redis operations in logs
 
 **Redis CLI:**
+
 ```bash
 docker exec -it faultline-redis redis-cli
 # Then run commands
 ```
 
 **Monitor Commands:**
+
 ```bash
 redis-cli MONITOR  # See all commands in real-time
 ```
@@ -630,4 +691,3 @@ redis-cli MONITOR  # See all commands in real-time
 - Job event log
 - Audit trail
 - Replay capability
-
